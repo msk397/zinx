@@ -1,7 +1,9 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"zinx/zinx/ziface"
 )
@@ -18,17 +20,39 @@ type Connection struct {
 	ExitChan chan bool
 
 	//该链接处理的方法Router
-	Router ziface.IRouter
+	MsgHandler ziface.IMsgHandle
+}
+
+// 提供一个SendMsg方法，将我们要发送给客户端的数据，先进行封包，再发送
+
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed {
+		return errors.New("Connection closed when send msg")
+	}
+	//将data进行封包
+	dp := NewDataPack()
+	binaryMsg, err := dp.Pack(NewMessage(msgId, data))
+	if err != nil {
+		fmt.Printf("Pack error msg id = %d, err = %s\n", msgId, err)
+		return err
+	}
+	//将数据发送给客户端
+	if _, err := c.Conn.Write(binaryMsg); err != nil {
+		fmt.Printf("Write error msg id = %d, err = %s\n", msgId, err)
+		c.Stop()
+		return err
+	}
+	return nil
 }
 
 // NewConnection 初始化连接模块的方法
-func NewConnection(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
 	c := &Connection{
-		Conn:     conn,
-		ConnID:   connID,
-		isClosed: false,
-		ExitChan: make(chan bool, 1),
-		Router:   router,
+		Conn:       conn,
+		ConnID:     connID,
+		isClosed:   false,
+		ExitChan:   make(chan bool, 1),
+		MsgHandler: msgHandle,
 	}
 	return c
 }
@@ -71,11 +95,6 @@ func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-func (c *Connection) Send(data []byte) error {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (c *Connection) StartReader() {
 	fmt.Println("Reader Goroutine is running...")
 	defer func() {
@@ -84,28 +103,49 @@ func (c *Connection) StartReader() {
 	}()
 
 	for {
-		//读取客户端的数据到buf中，最大512字节
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
+		//读取客户端的数据到buf中
+		//buf := make([]byte, utils.GlobalObject.MaxPackageSize)
+		//_, err := c.Conn.Read(buf)
+		//if err != nil {
+		//	fmt.Println("recv buf err", err)
+		//	continue
+		//}
+		dp := NewDataPack()
+		//读取客户端的Msg Head 二进制流 8个字节
+		headData := make([]byte, dp.GetHeadLen())
+		_, err := io.ReadFull(c.GetTCPConnection(), headData) //ReadFull 会把headData填充满为止
 		if err != nil {
-			fmt.Println("recv buf err", err)
-			continue
+			fmt.Println("read head error", err)
+			break
 		}
+		//拆包，得到msgID 和 msgDatalen 放在msg消息中
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack error", err)
+			break
+		}
+		//根据datalen 再次读取data 放在msg.Data中
+		var data []byte
+		if msg.GetMsgLen() > 0 {
+			data = make([]byte, msg.GetMsgLen())
+			_, err := io.ReadFull(c.GetTCPConnection(), data)
+			if err != nil {
+				fmt.Println("read msg data error", err)
+				break
+			}
+		}
+		msg.SetData(data)
+
 		//显示客户端发送的内容
 		//fmt.Printf("recv client buf %s, cnt = %d\n", buf, cnt)
 
 		//得到当前conn数据的Request请求数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 		//执行注册的路由方法
-		go func(req ziface.IRequest) {
-			//从路由中，找到注册绑定的Conn对应的router调用
-			c.Router.PreHandle(req)
-			c.Router.Handle(req)
-			c.Router.PostHandle(req)
-		}(&req)
+		go c.MsgHandler.DoMsgHandler(&req)
 
 	}
 }
