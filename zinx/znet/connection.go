@@ -14,25 +14,26 @@ type Connection struct {
 	// 当前的连接状态
 	isClosed bool
 
-	//当前连接所绑定的处理业务方法API
-	handleAPI ziface.HandleFunc
 	// 告知当前连接已经退出/停止的channel
 	ExitChan chan bool
+
+	//该链接处理的方法Router
+	Router ziface.IRouter
 }
 
 // NewConnection 初始化连接模块的方法
-func NewConnection(conn *net.TCPConn, connID uint32, callback_api ziface.HandleFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection {
 	c := &Connection{
-		Conn:      conn,
-		ConnID:    connID,
-		handleAPI: callback_api,
-		isClosed:  false,
-		ExitChan:  make(chan bool, 1),
+		Conn:     conn,
+		ConnID:   connID,
+		isClosed: false,
+		ExitChan: make(chan bool, 1),
+		Router:   router,
 	}
 	return c
 }
 
-func (c Connection) Start() {
+func (c *Connection) Start() {
 	fmt.Println("Conn Start()...ConnID = ", c.ConnID)
 	// 启动从当前连接的读数据的业务
 	go c.StartReader()
@@ -40,7 +41,7 @@ func (c Connection) Start() {
 
 }
 
-func (c Connection) Stop() {
+func (c *Connection) Stop() {
 	fmt.Println("Conn Stop()...ConnID = ", c.ConnID)
 	// 如果当前连接已经关闭
 	if c.isClosed {
@@ -58,24 +59,24 @@ func (c Connection) Stop() {
 	close(c.ExitChan)
 }
 
-func (c Connection) GetTCPConnection() *net.TCPConn {
+func (c *Connection) GetTCPConnection() *net.TCPConn {
 	return c.Conn
 }
 
-func (c Connection) GetConnID() uint32 {
+func (c *Connection) GetConnID() uint32 {
 	return c.ConnID
 }
 
-func (c Connection) RemoteAddr() net.Addr {
+func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-func (c Connection) Send(data []byte) error {
+func (c *Connection) Send(data []byte) error {
 	//TODO implement me
 	panic("implement me")
 }
 
-func (c Connection) StartReader() {
+func (c *Connection) StartReader() {
 	fmt.Println("Reader Goroutine is running...")
 	defer func() {
 		c.Stop()
@@ -85,21 +86,30 @@ func (c Connection) StartReader() {
 	for {
 		//读取客户端的数据到buf中，最大512字节
 		buf := make([]byte, 512)
-		cnt, err := c.Conn.Read(buf)
+		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("recv buf err", err)
 			continue
 		}
 		//显示客户端发送的内容
-		fmt.Printf("recv client buf %s, cnt = %d\n", buf, cnt)
-		// 调用当前连接所绑定的handleAPI
-		if err := c.handleAPI(c.Conn, buf, cnt); err != nil {
-			fmt.Println("ConnID", c.ConnID, "handle is error")
-			break
+		//fmt.Printf("recv client buf %s, cnt = %d\n", buf, cnt)
+
+		//得到当前conn数据的Request请求数据
+		req := Request{
+			conn: c,
+			data: buf,
 		}
+		//执行注册的路由方法
+		go func(req ziface.IRequest) {
+			//从路由中，找到注册绑定的Conn对应的router调用
+			c.Router.PreHandle(req)
+			c.Router.Handle(req)
+			c.Router.PostHandle(req)
+		}(&req)
+
 	}
 }
 
-func (c Connection) StartWriter() {
+func (c *Connection) StartWriter() {
 
 }
