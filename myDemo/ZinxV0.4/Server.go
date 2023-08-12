@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
-	"zinx/zinx/ziface"
-	"zinx/zinx/znet"
+	"zinx/ziface"
+	znet2 "zinx/znet"
 )
 
 // ping test 自定义路由
 type PingRouter struct {
-	znet.BaseRouter
+	znet2.BaseRouter
 }
 
 // Test PreHandle
@@ -38,7 +38,7 @@ func (p *PingRouter) PostHandle(request ziface.IRequest) {
 
 func main() {
 	// 创建一个服务器句柄
-	s := znet.NewServer("[zinx V0.4]")
+	s := znet2.NewServer("[zinx V0.4]")
 	// 给当前 zinx 框架添加一个自定义的 router
 	s.AddRouter(&PingRouter{})
 	// 运行服务器

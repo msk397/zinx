@@ -5,7 +5,7 @@ import (
 	"io"
 	"net"
 	"testing"
-	"zinx/zinx/znet"
+	znet2 "zinx/znet"
 )
 
 // 测试datapack拆包和封包
@@ -32,7 +32,7 @@ func TestDataPack(t *testing.T) {
 				//处理客户端的请求
 				/* 拆包的过程 */
 				//定义一个拆包对象dp
-				dp := znet.NewDataPack()
+				dp := znet2.NewDataPack()
 				for {
 					// 1. 第一次从conn读head
 					headData := make([]byte, dp.GetHeadLen())
@@ -51,7 +51,7 @@ func TestDataPack(t *testing.T) {
 						//说明msg里面有数据，需要根据msg里面的msglen接着读
 
 						//从conn里面接着读，根据msg里面的msglen
-						msg := message.(*znet.Message)
+						msg := message.(*znet2.Message)
 						msg.Data = make([]byte, msg.GetMsgLen())
 						_, err := io.ReadFull(conn, msg.Data)
 						if err != nil {
@@ -79,10 +79,10 @@ func TestDataPack(t *testing.T) {
 	}
 
 	//创建一个封包对象 dp
-	dp := znet.NewDataPack()
+	dp := znet2.NewDataPack()
 	//模拟粘包过程，封装两个msg一起发送
 	//封第一个
-	msg1 := &znet.Message{
+	msg1 := &znet2.Message{
 		Id:      1,
 		DataLen: 4,
 		Data:    []byte{'z', 'i', 'n', 'x'},
@@ -93,7 +93,7 @@ func TestDataPack(t *testing.T) {
 		return
 	}
 	//封第二个
-	msg2 := &znet.Message{
+	msg2 := &znet2.Message{
 		Id:      1,
 		DataLen: 7,
 		Data:    []byte{'h', 'e', 'l', 'l', 'o', '!', '!'},

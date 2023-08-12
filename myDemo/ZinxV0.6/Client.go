@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 	"time"
-	"zinx/zinx/znet"
+	znet2 "zinx/znet"
 )
 
 /*
@@ -22,8 +22,8 @@ func main() {
 	}
 	for i := 0; i < 1000; i++ {
 		// 发送封包的 msg 消息
-		dp := znet.NewDataPack()
-		binaryMsg, err := dp.Pack(znet.NewMessage(uint32(i%3), []byte("ZinxV0.6 client Test Message")))
+		dp := znet2.NewDataPack()
+		binaryMsg, err := dp.Pack(znet2.NewMessage(uint32(i%3), []byte("ZinxV0.6 client Test Message")))
 		if err != nil {
 			fmt.Println("Pack error:", err)
 			return
@@ -46,7 +46,7 @@ func main() {
 		}
 		if msgHead.GetMsgLen() > 0 {
 			// 2. 再根据 dataLen 进行第二次读取，将 data 读出来
-			msg := msgHead.(*znet.Message)
+			msg := msgHead.(*znet2.Message)
 			msg.Data = make([]byte, msg.GetMsgLen())
 			if _, err := dial.Read(msg.Data); err != nil {
 				fmt.Println("Server unpack data err:", err)

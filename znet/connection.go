@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"zinx/zinx/ziface"
+	"zinx/ziface"
 )
 
 type Connection struct {
@@ -19,8 +19,24 @@ type Connection struct {
 	// 告知当前连接已经退出/停止的channel
 	ExitChan chan bool
 
+	// 无缓冲管道，用于读、写两个goroutine之间的消息通信
+	msgChan chan []byte
+
 	//该链接处理的方法Router
 	MsgHandler ziface.IMsgHandle
+}
+
+// NewConnection 初始化连接模块的方法
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
+	c := &Connection{
+		Conn:       conn,
+		ConnID:     connID,
+		isClosed:   false,
+		ExitChan:   make(chan bool, 1),
+		msgChan:    make(chan []byte),
+		MsgHandler: msgHandle,
+	}
+	return c
 }
 
 // 提供一个SendMsg方法，将我们要发送给客户端的数据，先进行封包，再发送
@@ -37,31 +53,16 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		return err
 	}
 	//将数据发送给客户端
-	if _, err := c.Conn.Write(binaryMsg); err != nil {
-		fmt.Printf("Write error msg id = %d, err = %s\n", msgId, err)
-		c.Stop()
-		return err
-	}
+	c.msgChan <- binaryMsg
 	return nil
-}
-
-// NewConnection 初始化连接模块的方法
-func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
-	c := &Connection{
-		Conn:       conn,
-		ConnID:     connID,
-		isClosed:   false,
-		ExitChan:   make(chan bool, 1),
-		MsgHandler: msgHandle,
-	}
-	return c
 }
 
 func (c *Connection) Start() {
 	fmt.Println("Conn Start()...ConnID = ", c.ConnID)
 	// 启动从当前连接的读数据的业务
 	go c.StartReader()
-	//TODO 启动从当前连接写数据的业务
+	//启动从当前连接写数据的业务
+	go c.StartWriter()
 
 }
 
@@ -79,8 +80,12 @@ func (c *Connection) Stop() {
 		return
 	}
 
+	//告知Writer关闭
+	c.ExitChan <- true
+
 	// 通知从缓冲队列读数据的业务，该链接已经关闭
 	close(c.ExitChan)
+	close(c.msgChan)
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {
@@ -150,6 +155,25 @@ func (c *Connection) StartReader() {
 	}
 }
 
+/*
+写消息Goroutine，专门发送给客户端消息的模块
+*/
 func (c *Connection) StartWriter() {
-
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), "[conn Writer exit!]")
+	//不断的阻塞的等待channel的消息，进行写给客户端
+	for {
+		select {
+		case data := <-c.msgChan:
+			//有数据要写给客户端
+			_, err := c.Conn.Write(data)
+			if err != nil {
+				fmt.Println("Send data error:, ", err, " Conn Writer exit")
+				return
+			}
+		case <-c.ExitChan:
+			//代表Reader已经退出，此时Writer也要退出
+			return
+		}
+	}
 }

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"zinx/zinx/utils"
-	"zinx/zinx/ziface"
+	"zinx/utils"
+	"zinx/ziface"
 )
 
 // DataPack 封包拆包，暂时不需要成员

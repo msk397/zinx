@@ -3,8 +3,8 @@ package znet
 import (
 	"fmt"
 	"net"
-	"zinx/zinx/utils"
-	"zinx/zinx/ziface"
+	"zinx/utils"
+	ziface2 "zinx/ziface"
 )
 
 // Server 服务器模块
@@ -19,11 +19,11 @@ type Server struct {
 	// 服务器监听的端口
 	Port int
 
-	MsgHandler ziface.IMsgHandle
+	MsgHandler ziface2.IMsgHandle
 }
 
 // AddRouter 添加路由方法
-func (s *Server) AddRouter(msgID uint32, router ziface.IRouter) {
+func (s *Server) AddRouter(msgID uint32, router ziface2.IRouter) {
 	s.MsgHandler.AddRouter(msgID, router)
 	fmt.Println("Add Router success!")
 }
@@ -89,7 +89,7 @@ func (s *Server) Serve() {
 }
 
 // NewServer 初始化Server模块的方法
-func NewServer(name string) ziface.IServer {
+func NewServer(name string) ziface2.IServer {
 	s := &Server{
 		Name:       utils.GlobalObject.Name,
 		IPVersion:  "tcp4",

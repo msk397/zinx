@@ -1,6 +1,8 @@
 package znet
 
-import "zinx/zinx/ziface"
+import (
+	"zinx/ziface"
+)
 
 // 实现 Router 时，先嵌入这个基类，然后根据需要对这个基类的方法进行重写就行了
 type BaseRouter struct{}

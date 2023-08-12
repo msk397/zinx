@@ -3,7 +3,7 @@ package znet
 import (
 	"fmt"
 	"strconv"
-	"zinx/zinx/ziface"
+	ziface2 "zinx/ziface"
 )
 
 /*
@@ -11,18 +11,18 @@ import (
 */
 type MyHandle struct {
 	// 存放每个msgID对应的处理方法
-	Apis map[uint32]ziface.IRouter
+	Apis map[uint32]ziface2.IRouter
 }
 
 // NewMsgHandle 创建MsgHandle的方法
 func NewMsgHandle() *MyHandle {
 	return &MyHandle{
-		Apis: make(map[uint32]ziface.IRouter),
+		Apis: make(map[uint32]ziface2.IRouter),
 	}
 }
 
 // DoMsgHandler 调度对应的Router处理方法
-func (m *MyHandle) DoMsgHandler(request ziface.IRequest) {
+func (m *MyHandle) DoMsgHandler(request ziface2.IRequest) {
 	// 1. 从request中找到msgID
 	handler, ok := m.Apis[request.GetMsgID()]
 	if !ok {
@@ -37,7 +37,7 @@ func (m *MyHandle) DoMsgHandler(request ziface.IRequest) {
 }
 
 // AddRouter 添加具体的处理逻辑
-func (m *MyHandle) AddRouter(msgID uint32, router ziface.IRouter) {
+func (m *MyHandle) AddRouter(msgID uint32, router ziface2.IRouter) {
 	// 1, 判断当前msg绑定的API处理方法是否已经存在
 	if _, ok := m.Apis[msgID]; ok {
 		//id 已经注册了
