@@ -34,6 +34,8 @@ func (s *Server) Start() {
 		utils.GlobalObject.Name, utils.GlobalObject.Host, utils.GlobalObject.TcpPort)
 	fmt.Printf("[zinx] Version %s, MaxConn: %d, MaxPackageSize: %d\n",
 		utils.GlobalObject.Version, utils.GlobalObject.MaxConn, utils.GlobalObject.MaxPackageSize)
+	// 初始化消息队列及Worker
+	s.MsgHandler.StartWorkerPool()
 	go func() {
 		//1. 获取一个TCP的Addr
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
@@ -60,6 +62,7 @@ func (s *Server) Start() {
 				fmt.Println("Accept err", err)
 				continue
 			}
+
 			// 将处理新连接的业务方法和conn进行绑定，得到我们的连接模块
 			dealConn := NewConnection(conn, cid, s.MsgHandler)
 			cid++
