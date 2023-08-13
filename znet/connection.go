@@ -10,6 +10,9 @@ import (
 )
 
 type Connection struct {
+	// 当前Connection隶属于哪个Server
+	TcpServer ziface.IServer
+
 	// 当前连接的socket TCP套接字
 	Conn *net.TCPConn
 	// 连接的ID
@@ -28,8 +31,9 @@ type Connection struct {
 }
 
 // NewConnection 初始化连接模块的方法
-func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
+func NewConnection(s ziface.IServer, conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
 	c := &Connection{
+		TcpServer:  s,
 		Conn:       conn,
 		ConnID:     connID,
 		isClosed:   false,
@@ -37,11 +41,23 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle
 		msgChan:    make(chan []byte),
 		MsgHandler: msgHandle,
 	}
+
+	// 将conn加入到ConnManager中
+	c.TcpServer.GetConnMgr().Add(c)
 	return c
 }
 
-// 提供一个SendMsg方法，将我们要发送给客户端的数据，先进行封包，再发送
+func (c *Connection) Start() {
+	fmt.Println("Conn Start()...ConnID = ", c.ConnID)
+	// 启动从当前连接的读数据的业务
+	go c.StartReader()
+	//启动从当前连接写数据的业务
+	go c.StartWriter()
+	// 按照开发者传递进来的创建连接之后需要调用的处理业务，执行对应的Hook函数
+	c.TcpServer.CallOnConnStart(c)
+}
 
+// 提供一个SendMsg方法，将我们要发送给客户端的数据，先进行封包，再发送
 func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	if c.isClosed {
 		return errors.New("Connection closed when send msg")
@@ -58,15 +74,6 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func (c *Connection) Start() {
-	fmt.Println("Conn Start()...ConnID = ", c.ConnID)
-	// 启动从当前连接的读数据的业务
-	go c.StartReader()
-	//启动从当前连接写数据的业务
-	go c.StartWriter()
-
-}
-
 func (c *Connection) Stop() {
 	fmt.Println("Conn Stop()...ConnID = ", c.ConnID)
 	// 如果当前连接已经关闭
@@ -75,6 +82,10 @@ func (c *Connection) Stop() {
 	}
 
 	c.isClosed = true
+
+	// 调用开发者注册的连接断开之后需要执行的业务Hook函数
+	c.TcpServer.CallOnConnStop(c)
+
 	// 关闭socket连接
 	err := c.Conn.Close()
 	if err != nil {
@@ -84,9 +95,13 @@ func (c *Connection) Stop() {
 	//告知Writer关闭
 	c.ExitChan <- true
 
+	// 将当前连接从ConnMgr中摘除掉
+	c.TcpServer.GetConnMgr().Remove(c)
+
 	// 通知从缓冲队列读数据的业务，该链接已经关闭
 	close(c.ExitChan)
 	close(c.msgChan)
+
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {

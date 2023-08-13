@@ -23,7 +23,7 @@ type GlobalObj struct {
 		Zinx
 	*/
 	Version          string // 当前 Zinx 的版本号
-	MaxConn          int    // 当前服务器主机允许的最大连接数
+	MaxConn          uint   // 当前服务器主机允许的最大连接数
 	MaxPackageSize   uint32 // 当前 Zinx 框架数据包的最大值
 	WorkerPoolSize   uint32 // 当前业务工作 Worker 池的 Goroutine 数量
 	MaxWorkerTaskLen uint32 // Zinx 框架允许用户最多开辟多少个 Worker（限定条件）
